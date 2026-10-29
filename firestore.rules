@@ -1,0 +1,1125 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Default-Deny Safety Net (Pillar 4.1)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Core Hardened Primitives (Phase 3)
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'safrialwahyu@gmail.com';
+    }
+
+    function hasUserProfile() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        hasUserProfile() &&
+        currentUserDoc().active == true &&
+        currentUserDoc().role == 'administrator'
+      );
+    }
+
+    function isPenilai() {
+      return isVerifiedUser() &&
+        hasUserProfile() &&
+        currentUserDoc().active == true &&
+        currentUserDoc().role == 'penilai';
+    }
+
+    function isKoordinator() {
+      return isVerifiedUser() &&
+        hasUserProfile() &&
+        currentUserDoc().active == true &&
+        currentUserDoc().role == 'koordinator';
+    }
+
+    function isKepalaMadrasah() {
+      return isVerifiedUser() &&
+        hasUserProfile() &&
+        currentUserDoc().active == true &&
+        currentUserDoc().role == 'kepala_madrasah';
+    }
+
+    function isAuthorizedStaff() {
+      return isAdmin() || isPenilai() || isKoordinator() || isKepalaMadrasah();
+    }
+
+    function isValidReaderUids(arr) {
+      return arr is list &&
+        arr.size() >= 1 &&
+        arr.size() <= 50 &&
+        arr[0] is string &&
+        arr[0].size() >= 1 &&
+        arr[0].size() <= 128;
+    }
+
+    function isStr(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isNumRange(val, minVal, maxVal) {
+      return val is number && val >= minVal && val <= maxVal;
+    }
+
+    // =========================================================================
+    // Entity Blueprint Validators (Pillar 2 - Anti-Update-Gap)
+    // =========================================================================
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'role', 'judgeSlot', 'linkedJudgeId',
+          'active', 'readerUids', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'displayName', 'role', 'judgeSlot', 'linkedJudgeId',
+          'active', 'readerUids', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        isStr(data.displayName, 1, 120) &&
+        data.role in ['administrator', 'penilai', 'koordinator', 'kepala_madrasah', 'viewer'] &&
+        data.judgeSlot in ['NONE', 'I', 'II'] &&
+        isStr(data.linkedJudgeId, 0, 128) &&
+        data.active is bool &&
+        isValidReaderUids(data.readerUids) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivate(data) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        isStr(data.email, 3, 200) &&
+        isStr(data.phone, 0, 40) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSchoolClass(data) {
+      return data.keys().hasAll([
+          'id', 'code', 'name', 'grade', 'homeroomTeacherId',
+          'homeroomTeacherName', 'active', 'readerUids', 'createdBy',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'code', 'name', 'grade', 'homeroomTeacherId',
+          'homeroomTeacherName', 'active', 'readerUids', 'createdBy',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id.size() <= 64 &&
+        isStr(data.code, 1, 30) &&
+        isStr(data.name, 1, 80) &&
+        data.grade in ['X', 'XI', 'XII'] &&
+        isStr(data.homeroomTeacherId, 0, 128) &&
+        isStr(data.homeroomTeacherName, 1, 120) &&
+        data.active is bool &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTeacher(data) {
+      return data.keys().hasAll([
+          'id', 'fullName', 'nip', 'assignedClassId', 'assignedClassName',
+          'active', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'fullName', 'nip', 'assignedClassId', 'assignedClassName',
+          'active', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id.size() <= 64 &&
+        isStr(data.fullName, 1, 120) &&
+        isStr(data.nip, 0, 50) &&
+        isStr(data.assignedClassId, 0, 64) &&
+        isStr(data.assignedClassName, 0, 80) &&
+        data.active is bool &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTeacherContact(data) {
+      return data.keys().hasAll(['teacherId', 'phone', 'updatedBy', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['teacherId', 'phone', 'updatedBy', 'createdAt', 'updatedAt']) &&
+        isValidId(data.teacherId) &&
+        data.teacherId.size() <= 64 &&
+        isStr(data.phone, 0, 40) &&
+        isValidId(data.updatedBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidJudge(data) {
+      return data.keys().hasAll([
+          'id', 'fullName', 'position', 'identityNumber', 'judgeRole',
+          'linkedUserUid', 'active', 'readerUids', 'createdBy',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'fullName', 'position', 'identityNumber', 'judgeRole',
+          'linkedUserUid', 'active', 'readerUids', 'createdBy',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id.size() <= 64 &&
+        isStr(data.fullName, 1, 120) &&
+        isStr(data.position, 1, 100) &&
+        isStr(data.identityNumber, 0, 50) &&
+        data.judgeRole in ['I', 'II'] &&
+        isStr(data.linkedUserUid, 0, 128) &&
+        data.active is bool &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidJudgingPeriod(data) {
+      return data.keys().hasAll([
+          'id', 'weekNumber', 'globalWeekNumber', 'month', 'year',
+          'academicYear', 'scheduledDate', 'ceremonyDate', 'theme',
+          'status', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'weekNumber', 'globalWeekNumber', 'month', 'year',
+          'academicYear', 'scheduledDate', 'ceremonyDate', 'theme',
+          'status', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id.size() <= 64 &&
+        isNumRange(data.weekNumber, 1, 5) &&
+        isNumRange(data.globalWeekNumber, 1, 53) &&
+        isNumRange(data.month, 1, 12) &&
+        isNumRange(data.year, 2024, 2035) &&
+        isStr(data.academicYear, 4, 20) &&
+        isStr(data.scheduledDate, 10, 10) &&
+        isStr(data.ceremonyDate, 0, 10) &&
+        isStr(data.theme, 1, 160) &&
+        data.status in ['SCHEDULED', 'OPEN', 'CLOSED'] &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidScoresMap(s) {
+      return s is map &&
+        s.keys().hasAll([
+          'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9',
+          'b1', 'b2', 'b3', 'b4', 'b5',
+          'c1', 'c2', 'c3', 'c4', 'c5',
+          'd1', 'd2', 'd3'
+        ]) &&
+        s.keys().hasOnly([
+          'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9',
+          'b1', 'b2', 'b3', 'b4', 'b5',
+          'c1', 'c2', 'c3', 'c4', 'c5',
+          'd1', 'd2', 'd3'
+        ]) &&
+        isNumRange(s.a1, 0, 5) && isNumRange(s.a2, 0, 5) && isNumRange(s.a3, 0, 5) &&
+        isNumRange(s.a4, 0, 5) && isNumRange(s.a5, 0, 5) && isNumRange(s.a6, 0, 5) &&
+        isNumRange(s.a7, 0, 5) && isNumRange(s.a8, 0, 5) && isNumRange(s.a9, 0, 5) &&
+        isNumRange(s.b1, 0, 10) && isNumRange(s.b2, 0, 7) && isNumRange(s.b3, 0, 6) &&
+        isNumRange(s.b4, 0, 8) && isNumRange(s.b5, 0, 4) &&
+        isNumRange(s.c1, 0, 2) && isNumRange(s.c2, 0, 2) && isNumRange(s.c3, 0, 2) &&
+        isNumRange(s.c4, 0, 2) && isNumRange(s.c5, 0, 2) &&
+        isNumRange(s.d1, 0, 4) && isNumRange(s.d2, 0, 3) && isNumRange(s.d3, 0, 3);
+    }
+
+    function isValidNotesMap(n) {
+      return n is map &&
+        n.keys().hasAll([
+          'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9',
+          'b1', 'b2', 'b3', 'b4', 'b5',
+          'c1', 'c2', 'c3', 'c4', 'c5',
+          'd1', 'd2', 'd3'
+        ]) &&
+        n.keys().hasOnly([
+          'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9',
+          'b1', 'b2', 'b3', 'b4', 'b5',
+          'c1', 'c2', 'c3', 'c4', 'c5',
+          'd1', 'd2', 'd3'
+        ]) &&
+        isStr(n.a1, 0, 250) && isStr(n.a2, 0, 250) && isStr(n.a3, 0, 250) &&
+        isStr(n.a4, 0, 250) && isStr(n.a5, 0, 250) && isStr(n.a6, 0, 250) &&
+        isStr(n.a7, 0, 250) && isStr(n.a8, 0, 250) && isStr(n.a9, 0, 250) &&
+        isStr(n.b1, 0, 250) && isStr(n.b2, 0, 250) && isStr(n.b3, 0, 250) &&
+        isStr(n.b4, 0, 250) && isStr(n.b5, 0, 250) &&
+        isStr(n.c1, 0, 250) && isStr(n.c2, 0, 250) && isStr(n.c3, 0, 250) &&
+        isStr(n.c4, 0, 250) && isStr(n.c5, 0, 250) &&
+        isStr(n.d1, 0, 250) && isStr(n.d2, 0, 250) && isStr(n.d3, 0, 250);
+    }
+
+    function isValidEvaluation(data) {
+      return data.keys().hasAll([
+          'id', 'periodId', 'weekNumber', 'month', 'year', 'evaluationDate',
+          'classId', 'className', 'homeroomTeacherName', 'theme',
+          'judgeId', 'judgeName', 'judgeNumber', 'scores', 'itemNotes',
+          'subtotalA', 'subtotalB', 'subtotalC', 'subtotalD', 'totalScore',
+          'generalNote', 'status', 'revisionCount', 'readerUids',
+          'createdBy', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'periodId', 'weekNumber', 'month', 'year', 'evaluationDate',
+          'classId', 'className', 'homeroomTeacherName', 'theme',
+          'judgeId', 'judgeName', 'judgeNumber', 'scores', 'itemNotes',
+          'subtotalA', 'subtotalB', 'subtotalC', 'subtotalD', 'totalScore',
+          'generalNote', 'status', 'revisionCount', 'readerUids',
+          'createdBy', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.periodId) &&
+        data.periodId.size() <= 64 &&
+        isNumRange(data.weekNumber, 1, 5) &&
+        isNumRange(data.month, 1, 12) &&
+        isNumRange(data.year, 2024, 2035) &&
+        isStr(data.evaluationDate, 10, 10) &&
+        isValidId(data.classId) &&
+        data.classId.size() <= 64 &&
+        isStr(data.className, 1, 80) &&
+        isStr(data.homeroomTeacherName, 1, 120) &&
+        isStr(data.theme, 1, 160) &&
+        isValidId(data.judgeId) &&
+        data.judgeId.size() <= 64 &&
+        isStr(data.judgeName, 1, 120) &&
+        data.judgeNumber in ['I', 'II'] &&
+        isValidScoresMap(data.scores) &&
+        isValidNotesMap(data.itemNotes) &&
+        isNumRange(data.subtotalA, 0, 45) &&
+        isNumRange(data.subtotalB, 0, 35) &&
+        isNumRange(data.subtotalC, 0, 10) &&
+        isNumRange(data.subtotalD, 0, 10) &&
+        isNumRange(data.totalScore, 0, 100) &&
+        (data.subtotalA + data.subtotalB + data.subtotalC + data.subtotalD == data.totalScore) &&
+        isStr(data.generalNote, 0, 1000) &&
+        data.status in ['DRAFT', 'FINAL', 'LOCKED'] &&
+        isNumRange(data.revisionCount, 0, 500) &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        isValidId(data.updatedBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEvaluationItem(data) {
+      return data.keys().hasAll([
+          'id', 'evaluationId', 'classId', 'periodId', 'aspectCode',
+          'itemCode', 'maxScore', 'score', 'note', 'readerUids',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'evaluationId', 'classId', 'periodId', 'aspectCode',
+          'itemCode', 'maxScore', 'score', 'note', 'readerUids',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.evaluationId) &&
+        isValidId(data.classId) &&
+        data.classId.size() <= 64 &&
+        isValidId(data.periodId) &&
+        data.periodId.size() <= 64 &&
+        data.aspectCode in ['A', 'B', 'C', 'D'] &&
+        isStr(data.itemCode, 2, 10) &&
+        isNumRange(data.maxScore, 1, 10) &&
+        isNumRange(data.score, 0, data.maxScore) &&
+        isStr(data.note, 0, 250) &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidWeeklyResult(data) {
+      return data.keys().hasAll([
+          'id', 'periodId', 'weekNumber', 'month', 'year', 'theme',
+          'winnerClassId', 'winnerClassName', 'winnerHomeroomTeacher',
+          'winnerScore', 'hasTie', 'tieResolutionNote', 'coordinatorName',
+          'principalName', 'status', 'approvedByUid', 'approvedByName',
+          'approvedAtIso', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'periodId', 'weekNumber', 'month', 'year', 'theme',
+          'winnerClassId', 'winnerClassName', 'winnerHomeroomTeacher',
+          'winnerScore', 'hasTie', 'tieResolutionNote', 'coordinatorName',
+          'principalName', 'status', 'approvedByUid', 'approvedByName',
+          'approvedAtIso', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isValidId(data.periodId) &&
+        data.periodId.size() <= 64 &&
+        isNumRange(data.weekNumber, 1, 5) &&
+        isNumRange(data.month, 1, 12) &&
+        isNumRange(data.year, 2024, 2035) &&
+        isStr(data.theme, 1, 160) &&
+        isValidId(data.winnerClassId) &&
+        data.winnerClassId.size() <= 64 &&
+        isStr(data.winnerClassName, 1, 80) &&
+        isStr(data.winnerHomeroomTeacher, 1, 120) &&
+        isNumRange(data.winnerScore, 0, 100) &&
+        data.hasTie is bool &&
+        isStr(data.tieResolutionNote, 0, 500) &&
+        isStr(data.coordinatorName, 1, 120) &&
+        isStr(data.principalName, 1, 120) &&
+        data.status in ['PROPOSED', 'APPROVED'] &&
+        isStr(data.approvedByUid, 0, 128) &&
+        isStr(data.approvedByName, 0, 120) &&
+        isStr(data.approvedAtIso, 0, 40) &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidMonthlyResult(data) {
+      return data.keys().hasAll([
+          'id', 'month', 'year', 'academicYear', 'winnerClassId',
+          'winnerClassName', 'winnerHomeroomTeacher', 'certificateCount',
+          'totalMonthlyScore', 'tieBreakerUsed', 'principalDecisionNote',
+          'principalName', 'status', 'approvedByUid', 'approvedByName',
+          'approvedAtIso', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'month', 'year', 'academicYear', 'winnerClassId',
+          'winnerClassName', 'winnerHomeroomTeacher', 'certificateCount',
+          'totalMonthlyScore', 'tieBreakerUsed', 'principalDecisionNote',
+          'principalName', 'status', 'approvedByUid', 'approvedByName',
+          'approvedAtIso', 'readerUids', 'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isNumRange(data.month, 1, 12) &&
+        isNumRange(data.year, 2024, 2035) &&
+        isStr(data.academicYear, 4, 20) &&
+        isValidId(data.winnerClassId) &&
+        data.winnerClassId.size() <= 64 &&
+        isStr(data.winnerClassName, 1, 80) &&
+        isStr(data.winnerHomeroomTeacher, 1, 120) &&
+        isNumRange(data.certificateCount, 0, 5) &&
+        isNumRange(data.totalMonthlyScore, 0, 500) &&
+        isStr(data.tieBreakerUsed, 0, 200) &&
+        isStr(data.principalDecisionNote, 0, 500) &&
+        isStr(data.principalName, 1, 120) &&
+        data.status in ['PROPOSED', 'APPROVED'] &&
+        isStr(data.approvedByUid, 0, 128) &&
+        isStr(data.approvedByName, 0, 120) &&
+        isStr(data.approvedAtIso, 0, 40) &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTrophyRecord(data) {
+      return data.keys().hasAll([
+          'id', 'periodLabel', 'month', 'year', 'academicYear',
+          'classId', 'className', 'homeroomTeacherName', 'certificateCount',
+          'cumulativeScore', 'isActiveHolder', 'ratifiedByUid',
+          'ratifiedByName', 'ratifiedByTitle', 'ratifiedDate', 'notes',
+          'status', 'readerUids', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'periodLabel', 'month', 'year', 'academicYear',
+          'classId', 'className', 'homeroomTeacherName', 'certificateCount',
+          'cumulativeScore', 'isActiveHolder', 'ratifiedByUid',
+          'ratifiedByName', 'ratifiedByTitle', 'ratifiedDate', 'notes',
+          'status', 'readerUids', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isStr(data.periodLabel, 1, 120) &&
+        isNumRange(data.month, 1, 12) &&
+        isNumRange(data.year, 2024, 2035) &&
+        isStr(data.academicYear, 4, 20) &&
+        isValidId(data.classId) &&
+        data.classId.size() <= 64 &&
+        isStr(data.className, 1, 80) &&
+        isStr(data.homeroomTeacherName, 1, 120) &&
+        isNumRange(data.certificateCount, 0, 50) &&
+        isNumRange(data.cumulativeScore, 0, 5000) &&
+        data.isActiveHolder is bool &&
+        isValidId(data.ratifiedByUid) &&
+        isStr(data.ratifiedByName, 1, 120) &&
+        isStr(data.ratifiedByTitle, 1, 100) &&
+        isStr(data.ratifiedDate, 10, 10) &&
+        isStr(data.notes, 0, 500) &&
+        data.status in ['RATIFIED', 'ARCHIVED'] &&
+        isValidReaderUids(data.readerUids) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCertificate(data) {
+      return data.keys().hasAll([
+          'id', 'certificateNumber', 'sequenceNumber', 'awardType',
+          'periodId', 'periodLabel', 'classId', 'className',
+          'homeroomTeacherName', 'recipientDisplay', 'roleTitle',
+          'finalScore', 'issueDate', 'principalName', 'vicePrincipalName',
+          'status', 'reissueCount', 'revokedReason', 'revokedByName',
+          'issuedByUid', 'issuedByName', 'readerUids', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'certificateNumber', 'sequenceNumber', 'awardType',
+          'periodId', 'periodLabel', 'classId', 'className',
+          'homeroomTeacherName', 'recipientDisplay', 'roleTitle',
+          'finalScore', 'issueDate', 'principalName', 'vicePrincipalName',
+          'status', 'reissueCount', 'revokedReason', 'revokedByName',
+          'issuedByUid', 'issuedByName', 'readerUids', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        isStr(data.certificateNumber, 5, 80) &&
+        isNumRange(data.sequenceNumber, 1, 99999) &&
+        data.awardType in ['WEEKLY', 'MONTHLY'] &&
+        isValidId(data.periodId) &&
+        data.periodId.size() <= 64 &&
+        isStr(data.periodLabel, 1, 120) &&
+        isValidId(data.classId) &&
+        data.classId.size() <= 64 &&
+        isStr(data.className, 1, 80) &&
+        isStr(data.homeroomTeacherName, 1, 120) &&
+        isStr(data.recipientDisplay, 1, 180) &&
+        isStr(data.roleTitle, 1, 120) &&
+        isNumRange(data.finalScore, 0, 500) &&
+        isStr(data.issueDate, 10, 10) &&
+        isStr(data.principalName, 1, 120) &&
+        isStr(data.vicePrincipalName, 1, 120) &&
+        data.status in ['ISSUED', 'REVOKED'] &&
+        isNumRange(data.reissueCount, 0, 100) &&
+        isStr(data.revokedReason, 0, 300) &&
+        isStr(data.revokedByName, 0, 120) &&
+        isValidId(data.issuedByUid) &&
+        isStr(data.issuedByName, 1, 120) &&
+        isValidReaderUids(data.readerUids) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidSchoolSettings(data) {
+      return data.keys().hasAll([
+          'id', 'schoolName', 'academicYear', 'location', 'address',
+          'motto', 'slogan', 'principalName', 'principalNip',
+          'vicePrincipalName', 'vicePrincipalNip', 'coordinatorName',
+          'certificateFormat', 'winnerRuleText', 'logoDataUrl',
+          'buildingDataUrl', 'currentTrophyClassId', 'currentTrophyClassName',
+          'staffUids', 'readerUids', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'schoolName', 'academicYear', 'location', 'address',
+          'motto', 'slogan', 'principalName', 'principalNip',
+          'vicePrincipalName', 'vicePrincipalNip', 'coordinatorName',
+          'certificateFormat', 'winnerRuleText', 'logoDataUrl',
+          'buildingDataUrl', 'currentTrophyClassId', 'currentTrophyClassName',
+          'staffUids', 'readerUids', 'updatedBy', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.id.size() <= 32 &&
+        isStr(data.schoolName, 1, 120) &&
+        isStr(data.academicYear, 4, 20) &&
+        isStr(data.location, 1, 100) &&
+        isStr(data.address, 1, 250) &&
+        isStr(data.motto, 1, 200) &&
+        isStr(data.slogan, 1, 200) &&
+        isStr(data.principalName, 1, 120) &&
+        isStr(data.principalNip, 0, 50) &&
+        isStr(data.vicePrincipalName, 1, 120) &&
+        isStr(data.vicePrincipalNip, 0, 50) &&
+        isStr(data.coordinatorName, 1, 120) &&
+        isStr(data.certificateFormat, 5, 80) &&
+        isStr(data.winnerRuleText, 5, 400) &&
+        isStr(data.logoDataUrl, 0, 250000) &&
+        isStr(data.buildingDataUrl, 0, 350000) &&
+        isStr(data.currentTrophyClassId, 0, 64) &&
+        isStr(data.currentTrophyClassName, 0, 80) &&
+        isValidReaderUids(data.staffUids) &&
+        isValidReaderUids(data.readerUids) &&
+        isValidId(data.updatedBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll([
+          'id', 'action', 'module', 'entityId', 'summary',
+          'actorUid', 'actorName', 'actorRole', 'readerUids', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'action', 'module', 'entityId', 'summary',
+          'actorUid', 'actorName', 'actorRole', 'readerUids', 'createdAt'
+        ]) &&
+        isValidId(data.id) &&
+        isStr(data.action, 1, 80) &&
+        isStr(data.module, 1, 60) &&
+        isValidId(data.entityId) &&
+        isStr(data.summary, 1, 500) &&
+        isValidId(data.actorUid) &&
+        isStr(data.actorName, 1, 120) &&
+        isStr(data.actorRole, 1, 40) &&
+        isValidReaderUids(data.readerUids) &&
+        data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Match Blocks (Phase 6 Production Rules)
+    // =========================================================================
+
+    // 1. /users/{userId}
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        request.auth.uid in incoming().readerUids &&
+        (
+          (request.auth.uid == userId && incoming().role == 'viewer' && incoming().judgeSlot == 'NONE') ||
+          isAdmin()
+        );
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (request.auth.uid == userId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'updatedAt'])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(userId) && isAdmin();
+    }
+
+    // 2. /user_private/{userId} (PII Isolated - Zero List Access)
+    match /user_private/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if false;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserPrivate(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (request.auth.uid == userId || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(userId) &&
+        isValidUserPrivate(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (request.auth.uid == userId &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'email', 'updatedAt'])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(userId) && isAdmin();
+    }
+
+    // 3. /classes/{classId}
+    match /classes/{classId} {
+      allow get: if isVerifiedUser() && isValidId(classId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(classId) &&
+        isValidSchoolClass(incoming()) &&
+        incoming().id == classId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isVerifiedUser() &&
+        isValidId(classId) &&
+        isValidSchoolClass(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(classId) && isAdmin();
+    }
+
+    // 4. /teachers/{teacherId}
+    match /teachers/{teacherId} {
+      allow get: if isVerifiedUser() && isValidId(teacherId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(teacherId) &&
+        isValidTeacher(incoming()) &&
+        incoming().id == teacherId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isVerifiedUser() &&
+        isValidId(teacherId) &&
+        isValidTeacher(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(teacherId) && isAdmin();
+    }
+
+    // 5. /teacher_contacts/{teacherId} (PII Isolated - Admin Only, Zero List)
+    match /teacher_contacts/{teacherId} {
+      allow get: if isVerifiedUser() && isValidId(teacherId) && isAdmin();
+      allow list: if false;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(teacherId) &&
+        isValidTeacherContact(incoming()) &&
+        incoming().teacherId == teacherId &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/teachers/$(teacherId)) &&
+        isAdmin();
+
+      allow update: if isVerifiedUser() &&
+        isValidId(teacherId) &&
+        isValidTeacherContact(incoming()) &&
+        incoming().teacherId == existing().teacherId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(teacherId) && isAdmin();
+    }
+
+    // 6. /judges/{judgeId}
+    match /judges/{judgeId} {
+      allow get: if isVerifiedUser() && isValidId(judgeId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(judgeId) &&
+        isValidJudge(incoming()) &&
+        incoming().id == judgeId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isVerifiedUser() &&
+        isValidId(judgeId) &&
+        isValidJudge(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow delete: if isVerifiedUser() && isValidId(judgeId) && isAdmin();
+    }
+
+    // 7. /judging_periods/{periodId}
+    match /judging_periods/{periodId} {
+      allow get: if isVerifiedUser() && isValidId(periodId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(periodId) &&
+        isValidJudgingPeriod(incoming()) &&
+        incoming().id == periodId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (isAdmin() || isKoordinator());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(periodId) &&
+        isValidJudgingPeriod(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isKoordinator() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'scheduledDate', 'ceremonyDate', 'theme', 'status', 'updatedAt'
+            ])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(periodId) && isAdmin();
+    }
+
+    // 8. /evaluations/{evaluationId}
+    match /evaluations/{evaluationId} {
+      allow get: if isVerifiedUser() && isValidId(evaluationId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(evaluationId) &&
+        isValidEvaluation(incoming()) &&
+        incoming().id == evaluationId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().status in ['DRAFT', 'FINAL'] &&
+        incoming().revisionCount == 0 &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/classes/$(incoming().classId)) &&
+        exists(/databases/$(database)/documents/judges/$(incoming().judgeId)) &&
+        exists(/databases/$(database)/documents/judging_periods/$(incoming().periodId)) &&
+        (isPenilai() || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(evaluationId) &&
+        isValidEvaluation(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().periodId == existing().periodId &&
+        incoming().classId == existing().classId &&
+        incoming().judgeNumber == existing().judgeNumber &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action 1: Authoring or Assigned Judge revises unlocked evaluation
+          (isPenilai() &&
+            (existing().createdBy == request.auth.uid || currentUserDoc().linkedJudgeId == existing().judgeId) &&
+            existing().status != 'LOCKED' &&
+            incoming().status in ['DRAFT', 'FINAL'] &&
+            incoming().revisionCount == existing().revisionCount + 1 &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'evaluationDate', 'theme', 'scores', 'itemNotes',
+              'subtotalA', 'subtotalB', 'subtotalC', 'subtotalD',
+              'totalScore', 'generalNote', 'status', 'revisionCount',
+              'updatedBy', 'updatedAt'
+            ])) ||
+          // Action 2: Kepala Madrasah locks finalized evaluation upon weekly ratification
+          (isKepalaMadrasah() &&
+            existing().status == 'FINAL' &&
+            incoming().status == 'LOCKED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedBy', 'updatedAt'])) ||
+          // Action 3: Admin escape hatch
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(evaluationId) && isAdmin();
+    }
+
+    // 9. /evaluation_items/{itemId}
+    match /evaluation_items/{itemId} {
+      allow get: if isVerifiedUser() && isValidId(itemId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(itemId) &&
+        isValidEvaluationItem(incoming()) &&
+        incoming().id == itemId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/evaluations/$(incoming().evaluationId)) &&
+        (isPenilai() || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(itemId) &&
+        isValidEvaluationItem(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().evaluationId == existing().evaluationId &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isPenilai() &&
+            existing().createdBy == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['score', 'note', 'updatedAt'])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(itemId) && isAdmin();
+    }
+
+    // 10. /weekly_results/{resultId}
+    match /weekly_results/{resultId} {
+      allow get: if isVerifiedUser() && isValidId(resultId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(resultId) &&
+        isValidWeeklyResult(incoming()) &&
+        incoming().id == resultId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().status != 'APPROVED' || incoming().approvedByUid == request.auth.uid) &&
+        exists(/databases/$(database)/documents/judging_periods/$(incoming().periodId)) &&
+        exists(/databases/$(database)/documents/classes/$(incoming().winnerClassId)) &&
+        (
+          (isKoordinator() && incoming().status == 'PROPOSED') ||
+          isKepalaMadrasah() ||
+          isAdmin()
+        );
+
+      allow update: if isVerifiedUser() &&
+        isValidId(resultId) &&
+        isValidWeeklyResult(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().periodId == existing().periodId &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isKoordinator() &&
+            existing().status == 'PROPOSED' &&
+            incoming().status == 'PROPOSED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'winnerClassId', 'winnerClassName', 'winnerHomeroomTeacher',
+              'winnerScore', 'hasTie', 'tieResolutionNote', 'coordinatorName',
+              'principalName', 'updatedAt'
+            ])) ||
+          (isKepalaMadrasah() &&
+            existing().status == 'PROPOSED' &&
+            incoming().status == 'APPROVED' &&
+            incoming().approvedByUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'winnerClassId', 'winnerClassName', 'winnerHomeroomTeacher',
+              'winnerScore', 'hasTie', 'tieResolutionNote', 'status',
+              'approvedByUid', 'approvedByName', 'approvedAtIso', 'updatedAt'
+            ])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(resultId) && isAdmin();
+    }
+
+    // 11. /monthly_results/{resultId}
+    match /monthly_results/{resultId} {
+      allow get: if isVerifiedUser() && isValidId(resultId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(resultId) &&
+        isValidMonthlyResult(incoming()) &&
+        incoming().id == resultId &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().status != 'APPROVED' || incoming().approvedByUid == request.auth.uid) &&
+        exists(/databases/$(database)/documents/classes/$(incoming().winnerClassId)) &&
+        (
+          (isKoordinator() && incoming().status == 'PROPOSED') ||
+          isKepalaMadrasah() ||
+          isAdmin()
+        );
+
+      allow update: if isVerifiedUser() &&
+        isValidId(resultId) &&
+        isValidMonthlyResult(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isKoordinator() &&
+            existing().status == 'PROPOSED' &&
+            incoming().status == 'PROPOSED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'winnerClassId', 'winnerClassName', 'winnerHomeroomTeacher',
+              'certificateCount', 'totalMonthlyScore', 'tieBreakerUsed',
+              'principalDecisionNote', 'updatedAt'
+            ])) ||
+          (isKepalaMadrasah() &&
+            existing().status == 'PROPOSED' &&
+            incoming().status == 'APPROVED' &&
+            incoming().approvedByUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'winnerClassId', 'winnerClassName', 'winnerHomeroomTeacher',
+              'certificateCount', 'totalMonthlyScore', 'tieBreakerUsed',
+              'principalDecisionNote', 'status', 'approvedByUid',
+              'approvedByName', 'approvedAtIso', 'updatedAt'
+            ])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(resultId) && isAdmin();
+    }
+
+    // 12. /trophy_history/{trophyId}
+    match /trophy_history/{trophyId} {
+      allow get: if isVerifiedUser() && isValidId(trophyId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(trophyId) &&
+        isValidTrophyRecord(incoming()) &&
+        incoming().id == trophyId &&
+        incoming().ratifiedByUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/classes/$(incoming().classId)) &&
+        (isKepalaMadrasah() || isAdmin());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(trophyId) &&
+        isValidTrophyRecord(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().classId == existing().classId &&
+        incoming().ratifiedByUid == existing().ratifiedByUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isKepalaMadrasah() &&
+            existing().status == 'RATIFIED' &&
+            incoming().status == 'ARCHIVED' &&
+            incoming().isActiveHolder == false &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['isActiveHolder', 'status', 'updatedAt'])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(trophyId) && isAdmin();
+    }
+
+    // 13. /certificates/{certificateId}
+    match /certificates/{certificateId} {
+      allow get: if isVerifiedUser() && isValidId(certificateId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(certificateId) &&
+        isValidCertificate(incoming()) &&
+        incoming().id == certificateId &&
+        incoming().issuedByUid == request.auth.uid &&
+        incoming().status == 'ISSUED' &&
+        incoming().reissueCount == 0 &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/classes/$(incoming().classId)) &&
+        (isAdmin() || isKepalaMadrasah() || isKoordinator());
+
+      allow update: if isVerifiedUser() &&
+        isValidId(certificateId) &&
+        isValidCertificate(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().certificateNumber == existing().certificateNumber &&
+        incoming().sequenceNumber == existing().sequenceNumber &&
+        incoming().classId == existing().classId &&
+        incoming().periodId == existing().periodId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          ((isAdmin() || isKepalaMadrasah() || isKoordinator()) &&
+            incoming().status == 'ISSUED' &&
+            incoming().reissueCount == existing().reissueCount + 1 &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'recipientDisplay', 'roleTitle', 'issueDate', 'principalName',
+              'vicePrincipalName', 'status', 'reissueCount', 'revokedReason',
+              'revokedByName', 'updatedAt'
+            ])) ||
+          ((isAdmin() || isKepalaMadrasah()) &&
+            existing().status == 'ISSUED' &&
+            incoming().status == 'REVOKED' &&
+            incoming().revokedReason.size() >= 3 &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'status', 'revokedReason', 'revokedByName', 'updatedAt'
+            ])) ||
+          isAdmin()
+        );
+
+      allow delete: if isVerifiedUser() && isValidId(certificateId) && isAdmin();
+    }
+
+    // 14. /school_settings/{settingId}
+    match /school_settings/{settingId} {
+      allow get: if isVerifiedUser() && isValidId(settingId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(settingId) &&
+        settingId == 'main' &&
+        isValidSchoolSettings(incoming()) &&
+        incoming().id == 'main' &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isVerifiedUser() &&
+        isValidId(settingId) &&
+        settingId == 'main' &&
+        isValidSchoolSettings(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        (
+          (isKepalaMadrasah() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'currentTrophyClassId', 'currentTrophyClassName', 'updatedBy', 'updatedAt'
+            ])) ||
+          isAdmin()
+        );
+
+      allow delete: if false;
+    }
+
+    // 15. /audit_logs/{logId} (Strictly Append-Only, Authorized Staff Only)
+    match /audit_logs/{logId} {
+      allow get: if isVerifiedUser() && isValidId(logId) && (request.auth.uid in existing().readerUids || isAdmin());
+      allow list: if isVerifiedUser() && request.auth.uid in existing().readerUids;
+
+      allow create: if isVerifiedUser() &&
+        isValidId(logId) &&
+        isValidAuditLog(incoming()) &&
+        incoming().id == logId &&
+        incoming().actorUid == request.auth.uid &&
+        request.auth.uid in incoming().readerUids &&
+        incoming().createdAt == request.time &&
+        isAuthorizedStaff();
+
+      allow update, delete: if false;
+    }
+  }
+}

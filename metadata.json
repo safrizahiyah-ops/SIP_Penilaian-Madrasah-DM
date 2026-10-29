@@ -1,0 +1,6 @@
+{
+  "name": "SIP-KELAS DARUL MAHFUDZ",
+  "description": "Sistem Informasi Penilaian Lomba Penataan (Bertema) dan Kebersihan Kelas Antar Kelas Perebutan Piala Bergilir Kepala Madrasah MA Darul Mahfudz Tahun Pelajaran 2026/2027.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

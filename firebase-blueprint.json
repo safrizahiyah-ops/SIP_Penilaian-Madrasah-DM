@@ -1,0 +1,411 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public staff profile and role assignment for SIP-KELAS Darul Mahfudz.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "role": { "type": "string", "enum": ["administrator", "penilai", "koordinator", "kepala_madrasah", "viewer"] },
+        "judgeSlot": { "type": "string", "enum": ["NONE", "I", "II"] },
+        "linkedJudgeId": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "readerUids": { "type": "array", "description": "Bounded list of authorized reader UIDs (max 50)." },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "role", "judgeSlot", "linkedJudgeId", "active", "readerUids", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Isolated PII (email and phone) for a user account.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "minLength": 3, "maxLength": 200 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "phone", "createdAt", "updatedAt"]
+    },
+    "SchoolClass": {
+      "title": "SchoolClass",
+      "description": "Master data for classes participating in the competition.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "minLength": 1, "maxLength": 30 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "grade": { "type": "string", "enum": ["X", "XI", "XII"] },
+        "homeroomTeacherId": { "type": "string", "maxLength": 128 },
+        "homeroomTeacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "active": { "type": "boolean" },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "code", "name", "grade", "homeroomTeacherId", "homeroomTeacherName", "active", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Homeroom teacher master data without private phone numbers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "nip": { "type": "string", "maxLength": 50 },
+        "assignedClassId": { "type": "string", "maxLength": 64 },
+        "assignedClassName": { "type": "string", "maxLength": 80 },
+        "active": { "type": "boolean" },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fullName", "nip", "assignedClassId", "assignedClassName", "active", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "TeacherContact": {
+      "title": "TeacherContact",
+      "description": "Isolated contact phone numbers for homeroom teachers.",
+      "type": "object",
+      "properties": {
+        "teacherId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "phone": { "type": "string", "maxLength": 40 },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["teacherId", "phone", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "Judge": {
+      "title": "Judge",
+      "description": "Master data for Penilai I and Penilai II.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "position": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "identityNumber": { "type": "string", "maxLength": 50 },
+        "judgeRole": { "type": "string", "enum": ["I", "II"] },
+        "linkedUserUid": { "type": "string", "maxLength": 128 },
+        "active": { "type": "boolean" },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fullName", "position", "identityNumber", "judgeRole", "linkedUserUid", "active", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "JudgingPeriod": {
+      "title": "JudgingPeriod",
+      "description": "Weekly judging schedule and thematic configuration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "weekNumber": { "type": "number" },
+        "globalWeekNumber": { "type": "number" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "academicYear": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "scheduledDate": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "ceremonyDate": { "type": "string", "maxLength": 10 },
+        "theme": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "status": { "type": "string", "enum": ["SCHEDULED", "OPEN", "CLOSED"] },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "weekNumber", "globalWeekNumber", "month", "year", "academicYear", "scheduledDate", "ceremonyDate", "theme", "status", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Evaluation": {
+      "title": "Evaluation",
+      "description": "Lampiran 1 weekly classroom evaluation sheet by a single judge.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "periodId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "weekNumber": { "type": "number" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "evaluationDate": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "homeroomTeacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "theme": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "judgeId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "judgeName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "judgeNumber": { "type": "string", "enum": ["I", "II"] },
+        "scores": { "type": "object" },
+        "itemNotes": { "type": "object" },
+        "subtotalA": { "type": "number" },
+        "subtotalB": { "type": "number" },
+        "subtotalC": { "type": "number" },
+        "subtotalD": { "type": "number" },
+        "totalScore": { "type": "number" },
+        "generalNote": { "type": "string", "maxLength": 1000 },
+        "status": { "type": "string", "enum": ["DRAFT", "FINAL", "LOCKED"] },
+        "revisionCount": { "type": "number" },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "periodId", "weekNumber", "month", "year", "evaluationDate", "classId", "className", "homeroomTeacherName", "theme", "judgeId", "judgeName", "judgeNumber", "scores", "itemNotes", "subtotalA", "subtotalB", "subtotalC", "subtotalD", "totalScore", "generalNote", "status", "revisionCount", "readerUids", "createdBy", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "EvaluationItem": {
+      "title": "EvaluationItem",
+      "description": "Individual scored rubric item linked to an Evaluation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "evaluationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "periodId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "aspectCode": { "type": "string", "enum": ["A", "B", "C", "D"] },
+        "itemCode": { "type": "string", "minLength": 2, "maxLength": 10 },
+        "maxScore": { "type": "number" },
+        "score": { "type": "number" },
+        "note": { "type": "string", "maxLength": 250 },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "evaluationId", "classId", "periodId", "aspectCode", "itemCode", "maxScore", "score", "note", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "WeeklyResult": {
+      "title": "WeeklyResult",
+      "description": "Lampiran 2 official ratified weekly result.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "periodId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "weekNumber": { "type": "number" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "theme": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "winnerClassId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "winnerClassName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "winnerHomeroomTeacher": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "winnerScore": { "type": "number" },
+        "hasTie": { "type": "boolean" },
+        "tieResolutionNote": { "type": "string", "maxLength": 500 },
+        "coordinatorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "principalName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "status": { "type": "string", "enum": ["PROPOSED", "APPROVED"] },
+        "approvedByUid": { "type": "string", "maxLength": 128 },
+        "approvedByName": { "type": "string", "maxLength": 120 },
+        "approvedAtIso": { "type": "string", "maxLength": 40 },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "periodId", "weekNumber", "month", "year", "theme", "winnerClassId", "winnerClassName", "winnerHomeroomTeacher", "winnerScore", "hasTie", "tieResolutionNote", "coordinatorName", "principalName", "status", "approvedByUid", "approvedByName", "approvedAtIso", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "MonthlyResult": {
+      "title": "MonthlyResult",
+      "description": "Lampiran 3 ratified monthly certificate summary and winner.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "academicYear": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "winnerClassId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "winnerClassName": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "winnerHomeroomTeacher": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "certificateCount": { "type": "number" },
+        "totalMonthlyScore": { "type": "number" },
+        "tieBreakerUsed": { "type": "string", "maxLength": 200 },
+        "principalDecisionNote": { "type": "string", "maxLength": 500 },
+        "principalName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "status": { "type": "string", "enum": ["PROPOSED", "APPROVED"] },
+        "approvedByUid": { "type": "string", "maxLength": 128 },
+        "approvedByName": { "type": "string", "maxLength": 120 },
+        "approvedAtIso": { "type": "string", "maxLength": 40 },
+        "readerUids": { "type": "array" },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "month", "year", "academicYear", "winnerClassId", "winnerClassName", "winnerHomeroomTeacher", "certificateCount", "totalMonthlyScore", "tieBreakerUsed", "principalDecisionNote", "principalName", "status", "approvedByUid", "approvedByName", "approvedAtIso", "readerUids", "createdBy", "createdAt", "updatedAt"]
+    },
+    "TrophyRecord": {
+      "title": "TrophyRecord",
+      "description": "Rotating Principal Trophy holder and decision history.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "periodLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "month": { "type": "number" },
+        "year": { "type": "number" },
+        "academicYear": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "homeroomTeacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "certificateCount": { "type": "number" },
+        "cumulativeScore": { "type": "number" },
+        "isActiveHolder": { "type": "boolean" },
+        "ratifiedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "ratifiedByName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "ratifiedByTitle": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "ratifiedDate": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["RATIFIED", "ARCHIVED"] },
+        "readerUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "periodLabel", "month", "year", "academicYear", "classId", "className", "homeroomTeacherName", "certificateCount", "cumulativeScore", "isActiveHolder", "ratifiedByUid", "ratifiedByName", "ratifiedByTitle", "ratifiedDate", "notes", "status", "readerUids", "createdAt", "updatedAt"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Official award certificate issued to winning classes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "certificateNumber": { "type": "string", "minLength": 5, "maxLength": 80 },
+        "sequenceNumber": { "type": "number" },
+        "awardType": { "type": "string", "enum": ["WEEKLY", "MONTHLY"] },
+        "periodId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "periodLabel": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "classId": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "className": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "homeroomTeacherName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "recipientDisplay": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "roleTitle": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "finalScore": { "type": "number" },
+        "issueDate": { "type": "string", "minLength": 10, "maxLength": 10 },
+        "principalName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "vicePrincipalName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "status": { "type": "string", "enum": ["ISSUED", "REVOKED"] },
+        "reissueCount": { "type": "number" },
+        "revokedReason": { "type": "string", "maxLength": 300 },
+        "revokedByName": { "type": "string", "maxLength": 120 },
+        "issuedByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "issuedByName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "readerUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "certificateNumber", "sequenceNumber", "awardType", "periodId", "periodLabel", "classId", "className", "homeroomTeacherName", "recipientDisplay", "roleTitle", "finalScore", "issueDate", "principalName", "vicePrincipalName", "status", "reissueCount", "revokedReason", "revokedByName", "issuedByUid", "issuedByName", "readerUids", "createdAt", "updatedAt"]
+    },
+    "SchoolSettings": {
+      "title": "SchoolSettings",
+      "description": "Madrasah identity, official signatories, branding assets, and competition rules.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 32, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "schoolName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "academicYear": { "type": "string", "minLength": 4, "maxLength": 20 },
+        "location": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "address": { "type": "string", "minLength": 1, "maxLength": 250 },
+        "motto": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "slogan": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "principalName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "principalNip": { "type": "string", "maxLength": 50 },
+        "vicePrincipalName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "vicePrincipalNip": { "type": "string", "maxLength": 50 },
+        "coordinatorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "certificateFormat": { "type": "string", "minLength": 5, "maxLength": 80 },
+        "winnerRuleText": { "type": "string", "minLength": 5, "maxLength": 400 },
+        "logoDataUrl": { "type": "string", "maxLength": 250000 },
+        "buildingDataUrl": { "type": "string", "maxLength": 350000 },
+        "currentTrophyClassId": { "type": "string", "maxLength": 64 },
+        "currentTrophyClassName": { "type": "string", "maxLength": 80 },
+        "staffUids": { "type": "array" },
+        "readerUids": { "type": "array" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "schoolName", "academicYear", "location", "address", "motto", "slogan", "principalName", "principalNip", "vicePrincipalName", "vicePrincipalNip", "coordinatorName", "certificateFormat", "winnerRuleText", "logoDataUrl", "buildingDataUrl", "currentTrophyClassId", "currentTrophyClassName", "staffUids", "readerUids", "updatedBy", "createdAt", "updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable audit log for data revisions, approvals, and certificate actions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "action": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "module": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "actorRole": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "readerUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "action", "module", "entityId", "summary", "actorUid", "actorName", "actorRole", "readerUids", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public staff profile and RBAC role document."
+    },
+    "/user_private/{userId}": {
+      "schema": "UserPrivateInfo",
+      "description": "Isolated PII document for user email and phone."
+    },
+    "/classes/{classId}": {
+      "schema": "SchoolClass",
+      "description": "Master collection of classes in MA Darul Mahfudz."
+    },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Master collection of homeroom teachers."
+    },
+    "/teacher_contacts/{teacherId}": {
+      "schema": "TeacherContact",
+      "description": "Isolated contact phone numbers for homeroom teachers."
+    },
+    "/judges/{judgeId}": {
+      "schema": "Judge",
+      "description": "Master collection of Penilai I and Penilai II."
+    },
+    "/judging_periods/{periodId}": {
+      "schema": "JudgingPeriod",
+      "description": "Weekly judging schedule and themes."
+    },
+    "/evaluations/{evaluationId}": {
+      "schema": "Evaluation",
+      "description": "Lampiran 1 weekly classroom evaluations."
+    },
+    "/evaluation_items/{itemId}": {
+      "schema": "EvaluationItem",
+      "description": "Individual scored rubric items linked to evaluations."
+    },
+    "/weekly_results/{resultId}": {
+      "schema": "WeeklyResult",
+      "description": "Lampiran 2 ratified weekly competition results."
+    },
+    "/monthly_results/{resultId}": {
+      "schema": "MonthlyResult",
+      "description": "Lampiran 3 ratified monthly certificate summaries."
+    },
+    "/trophy_history/{trophyId}": {
+      "schema": "TrophyRecord",
+      "description": "Rotating Principal Trophy holders and history."
+    },
+    "/certificates/{certificateId}": {
+      "schema": "Certificate",
+      "description": "Issued and revoked award certificates."
+    },
+    "/school_settings/{settingId}": {
+      "schema": "SchoolSettings",
+      "description": "Madrasah identity, official signatories, and configuration."
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Append-only audit trail."
+    }
+  }
+}
